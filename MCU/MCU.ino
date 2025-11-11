@@ -44,6 +44,7 @@ RCSwitch RF = RCSwitch();
 //define global
 volatile uint8_t POS = 1;
 volatile uint8_t TARGET;
+volatile unsigned long lastFloorISR = 0;
 
 /*
 freeRTOS tasks
@@ -84,6 +85,10 @@ void vStopper(void *arg){
 }
 
 void atFloor1(){
+  unsigned long now = millis();
+  if(now - lastFloorISR < 50) return; // debounce 50ms
+  lastFloorISR = now;
+
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 1;
   if(TARGET == 1){
@@ -93,6 +98,10 @@ void atFloor1(){
 }
 
 void atFloor2(){
+  unsigned long now = millis();
+  if(now - lastFloorISR < 50) return; // debounce 50ms
+  lastFloorISR = now;
+
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 2;
   if(TARGET == 2){
@@ -102,6 +111,10 @@ void atFloor2(){
 }
 
 void atFloor3(){
+  unsigned long now = millis();
+  if(now - lastFloorISR < 50) return; // debounce 50ms
+  lastFloorISR = now;
+
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 3;
   if(TARGET == 3){
@@ -151,7 +164,7 @@ void setup() {
 
   xSemTransit = xSemaphoreCreateBinary();
   xSemDoneTransit = xSemaphoreCreateBinary();
-  xQueueTransit = xQueueCreate(10, sizeof( transit ) );
+  //xQueueTransit = xQueueCreate(10, sizeof( transit ) );
   xQueueGetDirection = xQueueCreate(10, sizeof( uint8_t ));
 
   xTaskCreate(vReceive, "Receive", 256, NULL, 2, NULL); 
