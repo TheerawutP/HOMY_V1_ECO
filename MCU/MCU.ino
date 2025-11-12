@@ -8,15 +8,26 @@
 #define floorSensor3 27
 #define EN 14
 #define FR 12
+#define BRK 5
+#define NP 17
+//#define 16 4
 
 //define macros
+#define BRK_ON digitalWrite(BRK, HIGH);
+#define BRK_OFF digitalWrite(BRK, LOW);
+#define M_RUN digitalWrite(EN, LOW);
+#define M_STP digitalWrite(EN, HIGH);
+#define M_UP digitalWrite(FR, HIGH);
+#define M_DW digitalWrite(FR, LOW);
+
 #define MOVE_TO(fl, dir) do { \
     if(dir == UP){ \
-      digitalWrite(FR, HIGH); \
+      M_UP \
     }else if(dir == DOWN){ \
-      digitalWrite(FR, LOW); \
+      M_DW \
     } \
-    digitalWrite(EN, LOW); \
+    BRK_OFF \
+    M_RUN \
 } while (0)
 
 //define rtos handles
@@ -79,12 +90,13 @@ void vGetDirection(void *arg){
 void vStopper(void *arg){
   for(;;){
     if(xSemaphoreTake(xSemDoneTransit, portMAX_DELAY) == pdTRUE){
-        digitalWrite(EN, HIGH); 
+        M_STP;
+        BRK_ON;
     }
   }
 }
 
-void atFloor1(){
+void ISR_atFloor1(){
   unsigned long now = millis();
   if(now - lastFloorISR < 50) return; // debounce 50ms
   lastFloorISR = now;
@@ -97,7 +109,7 @@ void atFloor1(){
   portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
-void atFloor2(){
+void ISR_atFloor2(){
   unsigned long now = millis();
   if(now - lastFloorISR < 50) return; // debounce 50ms
   lastFloorISR = now;
@@ -110,7 +122,7 @@ void atFloor2(){
   portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
-void atFloor3(){
+void ISR_atFloor3(){
   unsigned long now = millis();
   if(now - lastFloorISR < 50) return; // debounce 50ms
   lastFloorISR = now;
@@ -120,6 +132,12 @@ void atFloor3(){
   if(TARGET == 3){
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
+  portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+}
+
+void ISR_Landing(){
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
   portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
 }
 
@@ -153,14 +171,17 @@ void setup() {
   //pos sensor
   pinMode(EN, OUTPUT);
   pinMode(FR, OUTPUT);
-
+  
   pinMode(floorSensor1, INPUT_PULLUP); 
   pinMode(floorSensor2, INPUT_PULLUP); 
   pinMode(floorSensor3, INPUT_PULLUP);
-  attachInterrupt(floorSensor1, atFloor1, FALLING);
-  attachInterrupt(floorSensor2, atFloor2, FALLING);
-  attachInterrupt(floorSensor3, atFloor3, FALLING);
+  attachInterrupt(floorSensor1, ISR_atFloor1, FALLING);
+  attachInterrupt(floorSensor2, ISR_atFloor2, FALLING);
+  attachInterrupt(floorSensor3, ISR_atFloor3, FALLING);
 
+  pinMode(BRK, OUTPUT);
+  pinMode(NP, INPUT_PULLUP);
+  attachInterrupt(NP, ISR_Landing, FALLING);
 
   xSemTransit = xSemaphoreCreateBinary();
   xSemDoneTransit = xSemaphoreCreateBinary();
