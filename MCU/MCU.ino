@@ -59,7 +59,7 @@ RCSwitch RF = RCSwitch();
 
 //helper functions
 //define global
-volatile uint8_t POS = 1;
+volatile uint8_t POS = -1;
 volatile uint8_t TARGET = -1;
 volatile unsigned long lastFloorISR = 0;
 bool emergency = false;
@@ -105,7 +105,7 @@ void vLanding(void *arg) {
 
      if (POS == 1 && emergency == true) {
         M_STP;   
-        BRK_ON;  
+        BRK_OFF;  
         emergency = false;  
         xTimerStop(xDisbrakeTimer, 0);
         vTaskSuspend(NULL); 
@@ -222,8 +222,6 @@ void setup() {
   xTaskCreate(vTransit, "Transit", 256, NULL, 2, NULL);
   xTaskCreate(vStopper, "Stopper", 256, NULL, 2, NULL);
   xTaskCreate(vLanding, "Landing", 256, NULL, 2, &xLandingHandle);
-  
-  
 }
 
 void loop() {
