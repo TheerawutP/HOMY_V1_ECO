@@ -10,15 +10,19 @@
 #define FR 12
 #define BRK 5
 #define NP 17
-//#define 16 4
+#define CS 16
+//#define 4
+#define toFloor1 174744
+#define toFloor2 174740
+#define toFloor3 174738
 
 //define macros
-#define BRK_ON digitalWrite(BRK, HIGH);
-#define BRK_OFF digitalWrite(BRK, LOW);
-#define M_RUN digitalWrite(EN, LOW);
-#define M_STP digitalWrite(EN, HIGH);
-#define M_UP digitalWrite(FR, HIGH);
-#define M_DW digitalWrite(FR, LOW);
+#define BRK_ON digitalWrite(BRK, HIGH); Serial.println("Brake ON");
+#define BRK_OFF digitalWrite(BRK, LOW); Serial.println("Brake OFF");
+#define M_RUN digitalWrite(EN, LOW); Serial.println("Motor Run");
+#define M_STP digitalWrite(EN, HIGH); Serial.println("Motro Stop");
+#define M_UP digitalWrite(FR, HIGH); Serial.println("Move UP");
+#define M_DW digitalWrite(FR, LOW); Serial.println("Move Down");
 
 #define ROTATE(dir) \
   do { \
@@ -39,7 +43,6 @@ SemaphoreHandle_t xSemTransit = NULL;
 SemaphoreHandle_t xSemDoneTransit = NULL;
 SemaphoreHandle_t xSemLanding;
 TimerHandle_t xDisbrakeTimer;
-
 TaskHandle_t xLandingHandle;
 
 //define enum
@@ -59,9 +62,10 @@ RCSwitch RF = RCSwitch();
 
 //helper functions
 //define global
-volatile uint8_t POS = -1;
+volatile uint8_t POS = 0;
 volatile uint8_t TARGET = -1;
 volatile unsigned long lastFloorISR = 0;
+volatile unsigned long lastNoPowerISR = 0;
 bool emergency = false;
 
 /*
@@ -72,6 +76,7 @@ void vTransit(void *arg) {
   for (;;) {
     if (xSemaphoreTake(xSemTransit, portMAX_DELAY) == pdTRUE) {
       TARGET = transit.floor;
+      Serial.println("start transit");
       ROTATE(transit.dir);
     }
   }
@@ -82,10 +87,14 @@ void vGetDirection(void *arg) {
   direction_t dir;
   for (;;) {
     if (xQueueReceive(xQueueGetDirection, &target, portMAX_DELAY) == pdTRUE) {
+      if(POS != target){
       dir = (target > POS) ? UP : DOWN;
       transit.floor = target;
       transit.dir = dir;
       xSemaphoreGive(xSemTransit);
+      }else{
+        Serial.println("We are reached");
+      }
     }
   }
 }
@@ -104,6 +113,7 @@ void vLanding(void *arg) {
   if (xSemaphoreTake(xSemLanding, portMAX_DELAY) == pdTRUE) {
 
      if (POS == 1 && emergency == true) {
+        Serial.println("finish Safety landing");
         M_STP;   
         BRK_OFF;  
         emergency = false;  
@@ -124,12 +134,14 @@ void vDisbrake(TimerHandle_t xDisbrake) {
 
 void ISR_atFloor1() {
   unsigned long now = millis();
-  if (now - lastFloorISR < 50) return;  // debounce 50ms
+  if (now - lastFloorISR < 200) return;  // debounce 50ms
   lastFloorISR = now;
+  Serial.println("reach floor1");
 
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 1;
   if (TARGET == POS && emergency == false) {
+        Serial.println("finish command toFloor1");
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -137,12 +149,13 @@ void ISR_atFloor1() {
 
 void ISR_atFloor2() {
   unsigned long now = millis();
-  if (now - lastFloorISR < 50) return;  // debounce 50ms
+  if (now - lastFloorISR < 200) return;  // debounce 50ms
   lastFloorISR = now;
-
+  Serial.println("reach floor2");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 2;
   if (TARGET == POS && emergency == false) {
+    Serial.println("finish command toFloor2");
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
@@ -150,18 +163,23 @@ void ISR_atFloor2() {
 
 void ISR_atFloor3() {
   unsigned long now = millis();
-  if (now - lastFloorISR < 50) return;  // debounce 50ms
+  if (now - lastFloorISR < 200) return;  // debounce 50ms
   lastFloorISR = now;
-
+  Serial.println("reach floor3");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 3;
   if (TARGET == POS && emergency == false) {
+    Serial.println("finish command toFloor3");
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void ISR_Landing() {
+  unsigned long now = millis();
+  if (now - lastFloorISR < 200) return;  // debounce 50ms
+  lastNoPowerISR = now;
+  Serial.println("NO POWER is detected!");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   emergency = true;
   vTaskResume(xLandingHandle);
@@ -170,20 +188,30 @@ void ISR_Landing() {
 }
 
 void vReceive(void *arg) {
+  int cmd_buf;
   for (;;) {
     if (RF.available()) {
       int cmd = RF.getReceivedValue();
       RF.resetAvailable();
       switch (cmd) {
 
-        case 1:
-          xQueueSend(xQueueGetDirection, &cmd, (TickType_t)0);
+        case toFloor1: //from A
+          cmd_buf = 1;
+          if(POS == 0){
+            POS = 1;
+          }
+          Serial.println("received toFloor1 cmd");
+          xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
           break;
-        case 2:
-          xQueueSend(xQueueGetDirection, &cmd, (TickType_t)0);
+        case toFloor2:
+          cmd_buf = 2;
+          Serial.println("received toFloor2 cmd");
+          xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
           break;
-        case 3:
-          xQueueSend(xQueueGetDirection, &cmd, (TickType_t)0);
+        case toFloor3:
+          cmd_buf = 3;
+          Serial.println("received toFloor3 cmd");
+          xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
           break;
       }
     }
@@ -210,21 +238,33 @@ void setup() {
   pinMode(NP, INPUT_PULLUP);
   attachInterrupt(NP, ISR_Landing, FALLING);
 
+  pinMode(CS, OUTPUT);
+  digitalWrite(CS, HIGH); //wake receiver up
+
   BRK_ON;
   xSemTransit = xSemaphoreCreateBinary();
   xSemDoneTransit = xSemaphoreCreateBinary();
   xSemLanding = xSemaphoreCreateBinary();
   //xQueueTransit = xQueueCreate(10, sizeof( transit ) );
-  xQueueGetDirection = xQueueCreate(10, sizeof(uint8_t));
+  xQueueGetDirection = xQueueCreate(1, sizeof(uint8_t));
   xDisbrakeTimer = xTimerCreate("DisbrakeTimer", 1500, pdTRUE, NULL, vDisbrake);
-  xTaskCreate(vReceive, "Receive", 256, NULL, 2, NULL);
-  xTaskCreate(vGetDirection, "GetDirection", 256, NULL, 2, NULL);
-  xTaskCreate(vTransit, "Transit", 256, NULL, 2, NULL);
-  xTaskCreate(vStopper, "Stopper", 256, NULL, 2, NULL);
-  xTaskCreate(vLanding, "Landing", 256, NULL, 2, &xLandingHandle);
+  xTaskCreate(vReceive, "Receive", 1024, NULL, 2, NULL);
+  xTaskCreate(vGetDirection, "GetDirection", 1024, NULL, 2, NULL);
+  xTaskCreate(vTransit, "Transit", 1024, NULL, 2, NULL);
+  xTaskCreate(vStopper, "Stopper", 1024, NULL, 2, NULL);
+  xTaskCreate(vLanding, "Landing", 2048, NULL, 2, &xLandingHandle);
 }
 
 void loop() {
-  //add serial debugger here
-  //vTaskDelay(1000); //
+  // if (rf.available()) {
+  //   Serial.println(rf.getReceivedValue());
+  //   Serial.println(rf.getReceivedBitlength());
+  //   Serial.println(rf.getReceivedDelay());
+  //   Serial.println(rf.getReceivedProtocol());
+  //   rf.resetAvailable();
+  // }
+  // vTaskDelay(1000);
+
+  //Serial.println(POS);
+  //vTaskDelay(5000);
 }
