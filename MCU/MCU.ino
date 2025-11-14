@@ -11,7 +11,8 @@
 #define BRK 5
 #define NP 17
 #define CS 16
-//#define 4
+#define RST_SYS 4
+
 #define toFloor1 174744
 #define toFloor2 174740
 #define toFloor3 174738
@@ -66,6 +67,7 @@ volatile uint8_t POS = 0;
 volatile uint8_t TARGET = -1;
 volatile unsigned long lastFloorISR = 0;
 volatile unsigned long lastNoPowerISR = 0;
+volatile unsigned long lastResetSysISR = 0;
 bool emergency = false;
 
 /*
@@ -149,7 +151,7 @@ void ISR_atFloor1() {
 
 void ISR_atFloor2() {
   unsigned long now = millis();
-  if (now - lastFloorISR < 200) return;  // debounce 50ms
+  if (now - lastFloorISR < 200) return;  
   lastFloorISR = now;
   Serial.println("reach floor2");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -163,7 +165,7 @@ void ISR_atFloor2() {
 
 void ISR_atFloor3() {
   unsigned long now = millis();
-  if (now - lastFloorISR < 200) return;  // debounce 50ms
+  if (now - lastFloorISR < 200) return;  
   lastFloorISR = now;
   Serial.println("reach floor3");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -177,13 +179,26 @@ void ISR_atFloor3() {
 
 void ISR_Landing() {
   unsigned long now = millis();
-  if (now - lastFloorISR < 200) return;  // debounce 50ms
+  if (now - lastFloorISR < 200) return;  
   lastNoPowerISR = now;
   Serial.println("NO POWER is detected!");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   emergency = true;
   vTaskResume(xLandingHandle);
   xSemaphoreGiveFromISR(xSemLanding, &xHigherPriorityTaskWoken);
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+void ISR_ResetSystem() {
+  unsigned long now = millis();
+  if (now - lastResetSysISR < 200) return;  
+  lastResetSysISR = now;
+  Serial.println("Reset System, Back to Floor1");
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+  transit.floor = 1;
+  transit.dir = DOWN;
+  xSemaphoreGiveFromISR(xSemTransit, &xHigherPriorityTaskWoken);
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
