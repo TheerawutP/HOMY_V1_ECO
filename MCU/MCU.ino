@@ -256,6 +256,9 @@ void setup() {
   pinMode(CS, OUTPUT);
   digitalWrite(CS, HIGH); //wake receiver up
 
+  pinMode(RST_SYS, INPUT_PULLUP);
+  attachInterrupt(RST_SYS, ISR_ResetSystem, FALLING);
+
   BRK_ON;
   xSemTransit = xSemaphoreCreateBinary();
   xSemDoneTransit = xSemaphoreCreateBinary();
@@ -271,12 +274,12 @@ void setup() {
 }
 
 void loop() {
-  // if (rf.available()) {
-  //   Serial.println(rf.getReceivedValue());
-  //   Serial.println(rf.getReceivedBitlength());
-  //   Serial.println(rf.getReceivedDelay());
-  //   Serial.println(rf.getReceivedProtocol());
-  //   rf.resetAvailable();
+  // if (RF.available()) {
+  //   Serial.println(RF.getReceivedValue());
+  //   Serial.println(RF.getReceivedBitlength());
+  //   Serial.println(RF.getReceivedDelay());
+  //   Serial.println(RF.getReceivedProtocol());
+  //   RF.resetAvailable();
   // }
   // vTaskDelay(1000);
 
