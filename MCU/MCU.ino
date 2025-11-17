@@ -49,7 +49,7 @@ inline void ROTATE(direction_t dir) {
         Serial.println("Move DOWN");
     }
     
-    digitalWrite(EN, LOW);
+    digitalWrite(EN, HIGH);
     Serial.println("Motor Run");
 }
 
@@ -64,12 +64,12 @@ inline void BRK_OFF() {
 }
 
 inline void M_RUN() {
-    digitalWrite(EN, LOW);
+    digitalWrite(EN, HIGH);
     Serial.println("Motor Run");
 }
 
 inline void M_STP() {
-    digitalWrite(EN, HIGH);
+    digitalWrite(EN, LOW);
     Serial.println("Motor Stop");
 }
 
@@ -193,14 +193,15 @@ void setup() {
 }
 
 void loop() {
-  // if (RF.available()) {
-  //   Serial.println(RF.getReceivedValue());
-  //   Serial.println(RF.getReceivedBitlength());
-  //   Serial.println(RF.getReceivedDelay());
-  //   Serial.println(RF.getReceivedProtocol());
-  //   RF.resetAvailable();
-  // }
+  if (RF.available()) {
+    Serial.println(RF.getReceivedValue());
+    Serial.println(RF.getReceivedBitlength());
+    Serial.println(RF.getReceivedDelay());
+    Serial.println(RF.getReceivedProtocol());
+    RF.resetAvailable();
+  }
   // vTaskDelay(1000);
+
   int curr_pos = readFileAsInt(SPIFFS, "/current_pos.txt");
   Serial.print("curr_pos in fs: "); Serial.println(curr_pos);
   vTaskDelay(5000);
@@ -280,7 +281,7 @@ void vDisbrake(TimerHandle_t xDisbrake) {
   xSemaphoreGive(xSemLanding);
 }
 
-void ISR_atFloor1() {
+void ARDUINO_ISR_ATTR ISR_atFloor1() {
   unsigned long now = millis();
   if (now - lastFloorISR_1 < DEBOUNCE_MS) return;  // debounce 50ms
   lastFloorISR_1 = now;
@@ -295,7 +296,7 @@ void ISR_atFloor1() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ISR_atFloor2() {
+void ARDUINO_ISR_ATTR ISR_atFloor2() {
   unsigned long now = millis();
   if (now - lastFloorISR_2 < DEBOUNCE_MS) return;  
   lastFloorISR_2 = now;
@@ -309,7 +310,7 @@ void ISR_atFloor2() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ISR_atFloor3() {
+void ARDUINO_ISR_ATTR ISR_atFloor3() {
   unsigned long now = millis();
   if (now - lastFloorISR_3 < DEBOUNCE_MS) return;  
   lastFloorISR_3 = now;
@@ -323,7 +324,7 @@ void ISR_atFloor3() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ISR_Landing() {
+void ARDUINO_ISR_ATTR ISR_Landing() {
   unsigned long now = millis();
   if (now - lastNoPowerISR < DEBOUNCE_MS) return;  
   lastNoPowerISR = now;
@@ -335,7 +336,7 @@ void ISR_Landing() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ISR_ResetSystem() {
+void ARDUINO_ISR_ATTR ISR_ResetSystem() {
   unsigned long now = millis();
   if (now - lastResetSysISR < DEBOUNCE_MS) return;  
   lastResetSysISR = now;
