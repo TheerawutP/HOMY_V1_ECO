@@ -177,6 +177,7 @@ void setup() {
   attachInterrupt(RST_SYS, ISR_ResetSystem, FALLING);
 
   BRK_ON;
+  M_STP;
   xSemTransit = xSemaphoreCreateBinary();
   xSemDoneTransit = xSemaphoreCreateBinary();
   xSemLanding = xSemaphoreCreateBinary();
@@ -262,7 +263,7 @@ void vLanding(void *arg) {
   for(;;){
   if (xSemaphoreTake(xSemLanding, portMAX_DELAY) == pdTRUE) {
 
-     if (POS == 1 && emergency == true) {
+     if (POS == 1 && emergency == 1){
         Serial.println("finish Safety landing");
         M_STP();   
         BRK_OFF();  
@@ -270,15 +271,18 @@ void vLanding(void *arg) {
         xTimerStop(xDisbrakeTimer, 0);
         vTaskSuspend(NULL); 
     }
-    BRK_ON();
-    xTimerStart(xDisbrakeTimer, 0);
+      //BRK_ON();
+      M_STP();  //since there's no brake in BLDC, use off motor instead
+      xTimerStart(xDisbrakeTimer, 0);
     }
   }
 }
 
 void vDisbrake(TimerHandle_t xDisbrake) {
-  BRK_OFF();
-  delay(200);
+  //BRK_OFF();
+  M_RUN(); //since there's no brake in BLDC, use on motor instead
+  //delay(200);
+  delay(1000);
   xSemaphoreGive(xSemLanding);
 }
 
@@ -332,8 +336,10 @@ void ARDUINO_ISR_ATTR ISR_Landing() {
   Serial.println("NO POWER is detected!");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   emergency = true;
-  xTaskResumeFromISR(xLandingHandle);
-  xSemaphoreGiveFromISR(xSemLanding, &xHigherPriorityTaskWoken);
+  if(POS != 1){
+    xTaskResumeFromISR(xLandingHandle);
+    xSemaphoreGiveFromISR(xSemLanding, &xHigherPriorityTaskWoken);
+  }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
@@ -344,9 +350,11 @@ void ARDUINO_ISR_ATTR ISR_ResetSystem() {
   Serial.println("Reset System, Back to Floor1");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
 
-  transit.floor = 1;
-  transit.dir = DOWN;
-  xSemaphoreGiveFromISR(xSemTransit, &xHigherPriorityTaskWoken);
+  if(POS != 1){
+    transit.floor = 1;
+    transit.dir = DOWN;
+    xSemaphoreGiveFromISR(xSemTransit, &xHigherPriorityTaskWoken);
+  } 
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
