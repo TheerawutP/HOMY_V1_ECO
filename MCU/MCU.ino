@@ -30,12 +30,11 @@ enum direction_t {
   DOWN
 };
 
-// enum state_t {
-//   IDLE,
-//   MOVING_UP,
-//   MOVING_DOWN,
-// };
-
+enum state_t {
+  IDLE,
+  MOVING,
+};
+state_t moving_state = IDLE;
 //define macros
 
 //inline functions
@@ -219,6 +218,7 @@ void vTransit(void *arg) {
       }
         BRK_OFF();
         Serial.println("start transit");
+        moving_state = MOVING;
         ROTATE(transit.dir);
     }
   }
@@ -253,6 +253,7 @@ void vStopper(void *arg) {
     M_STP();
     BRK_ON();
     TARGET = 0;
+    moving_state = IDLE;
     }
   }
 }
@@ -363,17 +364,17 @@ void vReceive(void *arg) {
             POS = 1;
           }
           Serial.println("received toFloor1 cmd");
-          xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
+          if(moving_state == IDLE) xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
           break;
         case toFloor2:
           cmd_buf = 2;
           Serial.println("received toFloor2 cmd");
-          xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
+          if(moving_state == IDLE) xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
           break;
         case toFloor3:
           cmd_buf = 3;
           Serial.println("received toFloor3 cmd");
-          xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
+          if(moving_state == IDLE) xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
           break;
       }
     }
