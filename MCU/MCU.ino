@@ -18,6 +18,7 @@
 #define toFloor1 174744
 #define toFloor2 174740
 #define toFloor3 174738
+#define STOP 
 
 #define DEBOUNCE_MS 200
 #define BRAKE_MS 1500
