@@ -56,12 +56,12 @@ inline void ROTATE(direction_t dir) {
 }
 
 inline void BRK_ON() {
-  digitalWrite(BRK, HIGH);
+  digitalWrite(BRK, LOW);
   Serial.println("Brake ON");
 }
 
 inline void BRK_OFF() {
-  digitalWrite(BRK, LOW);
+  digitalWrite(BRK, HIGH);
   Serial.println("Brake OFF");
 }
 
@@ -74,6 +74,7 @@ inline void BRK_OFF() {
 inline void M_STP() {
   digitalWrite(R_UP, LOW);
   digitalWrite(R_DW, LOW);
+  digitalWrite(MOVING_DW, LOW);
   Serial.println("Motor Stop");
 }
 
