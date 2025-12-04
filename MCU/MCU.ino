@@ -71,10 +71,11 @@ inline void BRK_OFF() {
 //     Serial.println("Motor Run");
 // }
 
-// inline void M_STP() {
-//     digitalWrite(EN, LOW);
-//     Serial.println("Motor Stop");
-// }
+inline void M_STP() {
+  digitalWrite(R_UP, LOW);
+  digitalWrite(R_DW, LOW);
+  Serial.println("Motor Stop");
+}
 
 inline void M_UP() {
   digitalWrite(R_UP, HIGH);
@@ -123,7 +124,8 @@ volatile unsigned long lastFloorISR_3 = 0;
 volatile unsigned long lastNoPowerISR = 0;
 volatile unsigned long lastResetSysISR = 0;
 bool emergency = false;
-
+bool btwFloor = false;
+direction_t lastDir = UP;
 //tasks prototypes
 void vReceive(void *arg);
 void vDisbrake(TimerHandle_t xDisbrake);
@@ -134,7 +136,7 @@ void vLanding(void *arg);
 void vDisbrake(TimerHandle_t xDisbrake);
 void ISR_atFloor1();
 void ISR_atFloor2();
-void ISR_atFloor3();
+// void ISR_atFloor3();
 void ISR_Landing();
 void ISR_ResetSystem();
 void vStatusLog(void *arg);
@@ -163,8 +165,9 @@ void setup() {
   RF.enableReceive(RFReceiver);  //attach interrupt to 22
 
   //pos sensor
-  pinMode(EN, OUTPUT);
-  pinMode(FR, OUTPUT);
+  pinMode(R_UP, OUTPUT);
+  pinMode(R_DW, OUTPUT);
+  pinMode(MOVING_DW, OUTPUT);
 
   pinMode(floorSensor1, INPUT_PULLUP);
   pinMode(floorSensor2, INPUT_PULLUP);
@@ -239,19 +242,23 @@ void vGetDirection(void *arg) {
   direction_t dir;
   for (;;) {
     if (xQueueReceive(xQueueGetDirection, &target, portMAX_DELAY) == pdTRUE) {
+
       if (POS != target) {
         dir = (target > POS) ? UP : DOWN;
 
-        if (xSemaphoreTake(xTransitMutex, portMAX_DELAY) == pdTRUE) {
-          transit.floor = target;
-          transit.dir = dir;
-          xSemaphoreGive(xTransitMutex);
-        }
-
+        transit.floor = target;
+        transit.dir = dir;
         xTimerStart(xWaitTimer, 0);
-        // xSemaphoreGive(xSemTransit);
       } else {
-        Serial.println("It's here");
+        if (btwFloor == true) {
+          if (lastDir == UP) transit.dir = DOWN;
+          if (lastDir == DOWN) transit.dir = UP;
+          transit.floor = target;
+          btwFloor = false;
+          xTimerStart(xWaitTimer, 0);
+        } else {
+          Serial.println("It's here");
+        }
       }
     }
   }
@@ -260,7 +267,7 @@ void vGetDirection(void *arg) {
 void vStopper(void *arg) {
   for (;;) {
     if (xSemaphoreTake(xSemDoneTransit, portMAX_DELAY) == pdTRUE) {
-      // M_STP();
+      M_STP();
       BRK_ON();
       TARGET = 0;
       moving_state = IDLE;
@@ -286,13 +293,13 @@ void vLanding(void *arg) {
   }
 }
 
-void vDisbrake(TimerHandle_t xDisbrake) {
+void vDisbrake(TimerHandle_t xTimer) {
   BRK_OFF();
   delay(500);
   xSemaphoreGive(xSemLanding);
 }
 
-void vWaitToTransit(TimerHandle_t xDisbrake) {
+void vWaitToTransit(TimerHandle_t xTimer) {
   xSemaphoreGive(xSemTransit);
 }
 
@@ -394,8 +401,13 @@ void vReceive(void *arg) {
         //   if(moving_state == IDLE) xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
         //   break;
         case STOP:
-          // M_STP();
+          M_STP();
           BRK_ON();
+          xQueueReset(xQueueGetDirection);
+          TARGET = 0;
+          moving_state = IDLE;
+          lastDir = transit.dir;
+          btwFloor = true;
           break;
       }
     }
