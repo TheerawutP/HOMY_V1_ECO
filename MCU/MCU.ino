@@ -5,8 +5,9 @@
 
 //define instances
 #define RFReceiver 22
-#define floorSensor1 25
-#define floorSensor2 26
+#define floorDetector 25
+// #define floorSensor1 25
+// #define floorSensor2 26
 // #define floorSensor3 27
 #define R_UP 14
 #define R_DW 12
