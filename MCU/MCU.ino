@@ -6,6 +6,8 @@
 //define instances
 #define RFReceiver 22
 #define floorDetector 25
+#define upper_lim 26
+#define lower_lim 27
 // #define floorSensor1 25
 // #define floorSensor2 26
 // #define floorSensor3 27
@@ -22,6 +24,8 @@
 // #define toFloor3 174738
 #define STOP 174737
 
+#define MAX_FLOOR 2
+#define MIN_FLOOR 1
 #define DEBOUNCE_MS 200
 #define BRAKE_MS 2000
 #define WAIT_MS 3000
@@ -305,48 +309,59 @@ void vWaitToTransit(TimerHandle_t xTimer) {
   xSemaphoreGive(xSemTransit);
 }
 
-void ARDUINO_ISR_ATTR ISR_atFloor1() {
+void ARDUINO_ISR_ATTR ISR_floorCounter() {
   unsigned long now = millis();
-  if (now - lastFloorISR_1 < DEBOUNCE_MS) return;  // debounce 50ms
-  lastFloorISR_1 = now;
-  Serial.println("reach floor1");
+  if (now - lastFloorCounter < DEBOUNCE_MS) return;  // debounce 50ms
+  lastFloorCounter = now;
+  POS++;
+  writeFile(SPIFFS, "/current_pos.txt", POS);
+  Serial.print("At floor: ")
+  Serial.println(POS);
 
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  POS = 1;
   if (TARGET == POS && emergency == false) {
-    Serial.println("finish command toFloor1");
+    Serial.println("finish command to floor: ");
+    Serial.println(POS);
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void ARDUINO_ISR_ATTR ISR_atFloor2() {
+void ARDUINO_ISR_ATTR ISR_atMaxFloor() {
   unsigned long now = millis();
-  if (now - lastFloorISR_2 < DEBOUNCE_MS) return;
-  lastFloorISR_2 = now;
-  Serial.println("reach floor2");
+  if (now - lastMaxFloor < DEBOUNCE_MS) return;
+  lastMaxFloor = now;
+  int curr_pos = MAX_FLOOR;
+  Serial.print("At floor: ")
+  Serial.println(curr_pos);
+
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  POS = 2;
+  POS = curr_pos;
   if (TARGET == POS && emergency == false) {
-    Serial.println("finish command toFloor2");
+    Serial.println("finish command to floor: ");
+    Serial.println(curr_pos);    
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-// void ARDUINO_ISR_ATTR ISR_atFloor3() {
-//   unsigned long now = millis();
-//   if (now - lastFloorISR_3 < DEBOUNCE_MS) return;
-//   lastFloorISR_3 = now;
-//   Serial.println("reach floor3");
-//   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-//   POS = 3;
-//   if (TARGET == POS && emergency == false) {
-//     Serial.println("finish command toFloor3");
-//     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
-//   }
-//   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-// }
+void ARDUINO_ISR_ATTR ISR_atMinFloor() {
+  unsigned long now = millis();
+  if (now - lastMinFloor < DEBOUNCE_MS) return;
+  lastMinFloor = now;
+  int curr_pos = MIN_FLOOR;
+  Serial.print("At floor: ")
+  Serial.println(curr_pos);
+
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+  POS = curr_pos;
+  if (TARGET == POS && emergency == false) {
+    Serial.println("finish command to floor: ");
+    Serial.println(curr_pos);      
+    xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
+  }
+  portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
 
 void ARDUINO_ISR_ATTR ISR_Landing() {
   unsigned long now = millis();
