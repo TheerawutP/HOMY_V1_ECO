@@ -5,9 +5,9 @@
 
 //define instances
 #define RFReceiver 22
-#define floorDetector 25
+#define floorDetector 27
 #define upper_lim 26
-#define lower_lim 27
+#define lower_lim 25
 // #define floorSensor1 25
 // #define floorSensor2 26
 // #define floorSensor3 27
@@ -21,10 +21,10 @@
 
 #define toFloor1 174744
 #define toFloor2 174740
-// #define toFloor3 174738
+#define toFloor3 174738
 #define STOP 174737
 
-#define MAX_FLOOR 2
+#define MAX_FLOOR 3
 #define MIN_FLOOR 1
 #define DEBOUNCE_MS 200
 #define BRAKE_MS 2000
@@ -121,12 +121,15 @@ RCSwitch RF = RCSwitch();
 
 //helper functions
 //define global
-volatile uint8_t POS = -1;
+volatile uint8_t POS = 0;
 volatile uint8_t defaultPOS = 1;
 volatile uint8_t TARGET = -1;
-volatile unsigned long lastFloorISR_1 = 0;
-volatile unsigned long lastFloorISR_2 = 0;
-volatile unsigned long lastFloorISR_3 = 0;
+volatile unsigned long lastFloorCounter = 0;
+volatile unsigned long lastMaxFloor = 0;
+volatile unsigned long lastMinFloor = 0;
+// volatile unsigned long lastFloorISR_1 = 0;
+// volatile unsigned long lastFloorISR_2 = 0;
+// volatile unsigned long lastFloorISR_3 = 0;
 volatile unsigned long lastNoPowerISR = 0;
 volatile unsigned long lastResetSysISR = 0;
 bool emergency = false;
@@ -175,12 +178,18 @@ void setup() {
   pinMode(R_DW, OUTPUT);
   pinMode(MOVING_DW, OUTPUT);
 
-  pinMode(floorSensor1, INPUT_PULLUP);
-  pinMode(floorSensor2, INPUT_PULLUP);
+  pinMode(floorDetector, INPUT_PULLUP);
+  pinMode(upper_lim, INPUT_PULLUP);
+  pinMode(lower_lim, INPUT_PULLUP);
+  // pinMode(floorSensor1, INPUT_PULLUP);
+  // pinMode(floorSensor2, INPUT_PULLUP);
   // pinMode(floorSensor3, INPUT_PULLUP);
-  attachInterrupt(floorSensor1, ISR_atFloor1, FALLING);
-  attachInterrupt(floorSensor2, ISR_atFloor2, FALLING);
+  // attachInterrupt(floorSensor1, ISR_atFloor1, FALLING);
+  // attachInterrupt(floorSensor2, ISR_atFloor2, FALLING);
   // attachInterrupt(floorSensor3, ISR_atFloor3, FALLING);
+  attachInterrupt(floorDetector, ISR_floorCounter, FALLING);
+  attachInterrupt(upper_lim, ISR_atMaxFloor, FALLING);
+  attachInterrupt(lower_lim, ISR_atMinFloor, FALLING);
 
   pinMode(BRK, OUTPUT);
   pinMode(NP, INPUT_PULLUP);
@@ -313,9 +322,9 @@ void ARDUINO_ISR_ATTR ISR_floorCounter() {
   unsigned long now = millis();
   if (now - lastFloorCounter < DEBOUNCE_MS) return;  // debounce 50ms
   lastFloorCounter = now;
-  POS++;
-  writeFile(SPIFFS, "/current_pos.txt", POS);
-  Serial.print("At floor: ")
+  if(transit.dir == UP) POS++;
+  if(transit.dir == DOWN) POS--;
+  Serial.print("At floor: ");
   Serial.println(POS);
 
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
@@ -332,13 +341,13 @@ void ARDUINO_ISR_ATTR ISR_atMaxFloor() {
   if (now - lastMaxFloor < DEBOUNCE_MS) return;
   lastMaxFloor = now;
   int curr_pos = MAX_FLOOR;
-  Serial.print("At floor: ")
+  Serial.print("At floor: ");
   Serial.println(curr_pos);
 
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = curr_pos;
   if (TARGET == POS && emergency == false) {
-    Serial.println("finish command to floor: ");
+    Serial.print("finish command to floor: ");
     Serial.println(curr_pos);    
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
@@ -350,13 +359,13 @@ void ARDUINO_ISR_ATTR ISR_atMinFloor() {
   if (now - lastMinFloor < DEBOUNCE_MS) return;
   lastMinFloor = now;
   int curr_pos = MIN_FLOOR;
-  Serial.print("At floor: ")
+  Serial.print("At floor: ");
   Serial.println(curr_pos);
 
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = curr_pos;
   if (TARGET == POS && emergency == false) {
-    Serial.println("finish command to floor: ");
+    Serial.print("finish command to floor: ");
     Serial.println(curr_pos);      
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
@@ -412,11 +421,13 @@ void vReceive(void *arg) {
           Serial.println("received toFloor2 cmd");
           if (moving_state == IDLE) xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
           break;
-        // case toFloor3:
-        //   cmd_buf = 3;
-        //   Serial.println("received toFloor3 cmd");
-        //   if(moving_state == IDLE) xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
-        //   break;
+
+        case toFloor3:
+          cmd_buf = 3;
+          Serial.println("received toFloor3 cmd");
+          if(moving_state == IDLE) xQueueSend(xQueueGetDirection, &cmd_buf, (TickType_t)0);
+          break;
+
         case STOP:
           M_STP();
           BRK_ON();
