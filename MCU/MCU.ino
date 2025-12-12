@@ -4,16 +4,16 @@
 #include "SPIFFS.h"
 
 //define instances
-#define RFReceiver 22
-#define floorSensor1 25
-#define floorSensor2 26
-// #define floorSensor3 27
-#define R_UP 14
-#define R_DW 12
-#define MOVING_DW 23
+#define RFReceiver 21
+#define floorSensor1 32
+#define floorSensor2 33
+// #define floorSensor3 25
+#define R_UP 19
+#define R_DW 18
+#define MOVING_DW 17
 #define BRK 5
-#define NP 17
-#define CS 16
+#define NP 22
+#define CS 23
 #define RST_SYS 4
 
 #define toFloor1 174744
