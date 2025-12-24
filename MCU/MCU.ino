@@ -4,16 +4,17 @@
 #include "SPIFFS.h"
 
 //define instances
-#define RFReceiver 21
+//////////////////////////////////////////////////////////// edit gpio here////////////////////////////////////////////////////////////
+#define RFReceiver 23
 #define floorSensor1 32
 #define floorSensor2 33
 // #define floorSensor3 25
-#define R_UP 19
-#define R_DW 18
-#define MOVING_DW 17
-#define BRK 5
-#define NP 22
-#define CS 23
+#define R_UP 19   //Relay UP
+#define R_DW 18 //Relay DOWN
+#define MOVING_DW 17 //Relay 4
+#define BRK 5 //brake
+#define NP 25
+#define CS 21
 #define RST_SYS 4
 
 #define toFloor1 174744
@@ -25,6 +26,7 @@
 #define BRAKE_MS 2000
 #define WAIT_MS 3000
 #define FORMAT_SPIFFS_IF_FAILED true
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // uint32_t CMD[NumCMD] = {174744, 174740, 174738, 174737}
 // uint8_t pinFloorSensor[NumFloor] = {25, 26, 27};
@@ -151,7 +153,7 @@ void writeFile(fs::FS &fs, const char *path, const char *message);
 
 void setup() {
   Serial.begin(115200);
-
+ //////////////////////////////////////////////////////////// file system init ////////////////////////////////////////////////////////////
   if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
     Serial.println("SPIFFS Mount Failed");
     return;
@@ -163,15 +165,17 @@ void setup() {
     POS = defaultPOS;
     writeFile(SPIFFS, "/current_pos.txt", POS);
   }
+  
   RF.enableReceive(RFReceiver);  //attach interrupt to 22
-
+  
+//////////////////////////////////////////////////////////// GPIO init ////////////////////////////////////////////////////////////
   //pos sensor
   pinMode(R_UP, OUTPUT);
   pinMode(R_DW, OUTPUT);
   pinMode(MOVING_DW, OUTPUT);
 
-  pinMode(floorSensor1, INPUT_PULLUP);
-  pinMode(floorSensor2, INPUT_PULLUP);
+  pinMode(floorSensor1, INPUT); //INPUT_PULLUP
+  pinMode(floorSensor2, INPUT);
   // pinMode(floorSensor3, INPUT_PULLUP);
   attachInterrupt(floorSensor1, ISR_atFloor1, FALLING);
   attachInterrupt(floorSensor2, ISR_atFloor2, FALLING);
@@ -189,6 +193,7 @@ void setup() {
 
   BRK_ON;
   M_STP;
+  //////////////////////////////////////////////////////////// create obj all about freeRTOS ////////////////////////////////////////////////////////////
   xSemTransit = xSemaphoreCreateBinary();
   xSemDoneTransit = xSemaphoreCreateBinary();
   xSemLanding = xSemaphoreCreateBinary();
@@ -205,6 +210,7 @@ void setup() {
 }
 
 void loop() {
+  //////////////////////////////////////////////////////////// print received commnad from remote ////////////////////////////////////////////////////////////
   if (RF.available()) {
     Serial.println(RF.getReceivedValue());
     Serial.println(RF.getReceivedBitlength());
@@ -223,6 +229,7 @@ void loop() {
 
 
 //freeRTOS task bodies
+//////////////////////////////////////////////////////////// vGetDirection -> here. thread for turn on relay to moving////////////////////////////////////////////////////////////
 void vTransit(void *arg) {
   for (;;) {
     if (xSemaphoreTake(xSemTransit, portMAX_DELAY) == pdTRUE) {
@@ -237,7 +244,7 @@ void vTransit(void *arg) {
     }
   }
 }
-
+//////////////////////////////////////////////////////////// after receive command from remote, command sent here to find direction to go////////////////////////////////////////////////////////////
 void vGetDirection(void *arg) {
   uint8_t target;
   direction_t dir;
@@ -264,7 +271,7 @@ void vGetDirection(void *arg) {
     }
   }
 }
-
+//////////////////////////////////////////////////////////// thread for stopping when reach target floor ////////////////////////////////////////////////////////////
 void vStopper(void *arg) {
   for (;;) {
     if (xSemaphoreTake(xSemDoneTransit, portMAX_DELAY) == pdTRUE) {
@@ -275,7 +282,7 @@ void vStopper(void *arg) {
     }
   }
 }
-
+//////////////////////////////////////////////////////////// thread that command to landing ////////////////////////////////////////////////////////////
 void vLanding(void *arg) {
   for (;;) {
     if (xSemaphoreTake(xSemLanding, portMAX_DELAY) == pdTRUE) {
@@ -293,16 +300,17 @@ void vLanding(void *arg) {
     }
   }
 }
-
+//////////////////////////////////////////////////////////// callback; brake then disbrake 500 ms (landing) ////////////////////////////////////////////////////////////
 void vDisbrake(TimerHandle_t xTimer) {
   BRK_OFF();
   delay(500);
   xSemaphoreGive(xSemLanding);
 }
-
+//////////////////////////////////////////////////////////// count down before start to move////////////////////////////////////////////////////////////
 void vWaitToTransit(TimerHandle_t xTimer) {
   xSemaphoreGive(xSemTransit);
 }
+//////////////////////////////////////////////////////////// interupt routine for floor switch floor 1st ////////////////////////////////////////////////////////////
 
 void ARDUINO_ISR_ATTR ISR_atFloor1() {
   unsigned long now = millis();
@@ -312,12 +320,14 @@ void ARDUINO_ISR_ATTR ISR_atFloor1() {
 
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 1;
+  btwFloor = false;
   if (TARGET == POS && emergency == false) {
     Serial.println("finish command toFloor1");
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
   }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
+//////////////////////////////////////////////////////////// interupt routine for floor switch floor 2nd ////////////////////////////////////////////////////////////
 
 void ARDUINO_ISR_ATTR ISR_atFloor2() {
   unsigned long now = millis();
@@ -326,6 +336,7 @@ void ARDUINO_ISR_ATTR ISR_atFloor2() {
   Serial.println("reach floor2");
   BaseType_t xHigherPriorityTaskWoken = pdFALSE;
   POS = 2;
+  btwFloor = false;
   if (TARGET == POS && emergency == false) {
     Serial.println("finish command toFloor2");
     xSemaphoreGiveFromISR(xSemDoneTransit, &xHigherPriorityTaskWoken);
@@ -346,6 +357,7 @@ void ARDUINO_ISR_ATTR ISR_atFloor2() {
 //   }
 //   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 // }
+//////////////////////////////////////////////////////////// interupt routine for no power //////////////////////////////////////////////////////////// 
 
 void ARDUINO_ISR_ATTR ISR_Landing() {
   unsigned long now = millis();
@@ -361,6 +373,8 @@ void ARDUINO_ISR_ATTR ISR_Landing() {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
+//////////////////////////////////////////////////////////// interupt routine for reset system button ////////////////////////////////////////////////////////////
+
 void ARDUINO_ISR_ATTR ISR_ResetSystem() {
   unsigned long now = millis();
   if (now - lastResetSysISR < DEBOUNCE_MS) return;
@@ -375,6 +389,8 @@ void ARDUINO_ISR_ATTR ISR_ResetSystem() {
   }
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
+
+//////////////////////////////////////////////////////////// receive command from remote ////////////////////////////////////////////////////////////
 
 void vReceive(void *arg) {
   int cmd_buf;
@@ -416,6 +432,8 @@ void vReceive(void *arg) {
   }
 }
 
+
+////////////////////////////////////////////////////////////after this is file system parts  (not involved with operation) ///////////////////////////////////////////////////////////////////////////
 void vStatusLogger(void *arg) {
   int lastPOS = -1;
   for (;;) {
