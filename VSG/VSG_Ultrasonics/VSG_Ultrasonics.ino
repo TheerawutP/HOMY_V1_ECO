@@ -1,10 +1,10 @@
-#define deviceNum   5
-#define ALM         15
-#define RANGE_START 2
+#define deviceNum   5  //amount of used ultrasonic ss
+#define ALM         15 //output pin when detected
+#define RANGE_START 2 
 #define RANGE_END   60
-#define RANGE_END_AUX 100
+#define RANGE_END_AUX 100 //range for lateral ultrasonic ss
 #define TIMEOUT     30000
-#define DECROSSTALK 60     
+#define DECROSSTALK 60   //period for each device trig-echo then move to another one
 
 uint8_t rx_pin[deviceNum]  = {33, 14, 18, 4, 25};
 uint8_t tx_pin[deviceNum]  = {32, 27, 19, 16, 26};
