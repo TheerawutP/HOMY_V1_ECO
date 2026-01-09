@@ -9,10 +9,10 @@
 #define floorSensor1 32
 #define floorSensor2 33
 // #define floorSensor3 25
-#define R_UP 19   //Relay UP
-#define R_DW 18 //Relay DOWN
-#define MOVING_DW 17 //Relay 4
-#define BRK 5 //brake
+#define R_UP 19       //Relay UP
+#define R_DW 18       //Relay DOWN
+#define MOVING_DW 17  //Relay 4
+#define BRK 5         //brake
 #define NP 25
 #define CS 21
 #define RST_SYS 4
@@ -153,7 +153,7 @@ void writeFile(fs::FS &fs, const char *path, const char *message);
 
 void setup() {
   Serial.begin(115200);
- //////////////////////////////////////////////////////////// file system init ////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////// file system init ////////////////////////////////////////////////////////////
   if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
     Serial.println("SPIFFS Mount Failed");
     return;
@@ -165,16 +165,16 @@ void setup() {
     POS = defaultPOS;
     writeFile(SPIFFS, "/current_pos.txt", POS);
   }
-  
+
   RF.enableReceive(RFReceiver);  //attach interrupt to 22
-  
-//////////////////////////////////////////////////////////// GPIO init ////////////////////////////////////////////////////////////
+
+  //////////////////////////////////////////////////////////// GPIO init ////////////////////////////////////////////////////////////
   //pos sensor
   pinMode(R_UP, OUTPUT);
   pinMode(R_DW, OUTPUT);
   pinMode(MOVING_DW, OUTPUT);
 
-  pinMode(floorSensor1, INPUT); //INPUT_PULLUP
+  pinMode(floorSensor1, INPUT);  //INPUT_PULLUP
   pinMode(floorSensor2, INPUT);
   // pinMode(floorSensor3, INPUT_PULLUP);
   attachInterrupt(floorSensor1, ISR_atFloor1, FALLING);
@@ -222,7 +222,14 @@ void loop() {
 
   int curr_pos = readFileAsInt(SPIFFS, "/current_pos.txt");
   Serial.print("curr_pos in fs: ");
-  Serial.println(curr_pos);
+  Serial.print(curr_pos);
+  if (btwFloor == true) {
+    Serial.println(" (btwFloor)");
+  } else {
+    Serial.println(" ");
+  }
+
+  Serial.println("----------");
   vTaskDelay(5000);
 }
 
@@ -265,7 +272,7 @@ void vGetDirection(void *arg) {
           btwFloor = false;
           xTimerStart(xWaitTimer, 0);
         } else {
-          Serial.println("It's here");
+          if (btwFloor == false) Serial.println("It's here");
         }
       }
     }
@@ -357,7 +364,7 @@ void ARDUINO_ISR_ATTR ISR_atFloor2() {
 //   }
 //   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 // }
-//////////////////////////////////////////////////////////// interupt routine for no power //////////////////////////////////////////////////////////// 
+//////////////////////////////////////////////////////////// interupt routine for no power ////////////////////////////////////////////////////////////
 
 void ARDUINO_ISR_ATTR ISR_Landing() {
   unsigned long now = millis();
